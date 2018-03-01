@@ -27,14 +27,13 @@ import javax.annotation.Nullable;
 public final class ImpersonationInfo {
   private final String principal;
   private final String keytabURI;
-  @Nullable
   private final Integer keytabURIVersion;
 
   /**
    * Creates {@link ImpersonationInfo} using the specified principal and keytab path.
    */
   public ImpersonationInfo(String principal, String keytabURI) {
-    this(principal, keytabURI, null);
+    this(principal, keytabURI, 0);
   }
 
   /**
@@ -60,7 +59,6 @@ public final class ImpersonationInfo {
     return keytabURI;
   }
 
-  @Nullable
   public Integer getKeytabURIVersion() {
     return keytabURIVersion;
   }

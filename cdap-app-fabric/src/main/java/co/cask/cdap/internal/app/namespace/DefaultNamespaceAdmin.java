@@ -143,7 +143,28 @@ public final class DefaultNamespaceAdmin implements NamespaceAdmin {
       validateCustomMapping(metadata);
     }
 
-    validateKerberosConfig(metadata);
+    // check that the user has configured either both or none of the following configuration: principal and keytab URI
+    boolean hasValidKerberosConf = false;
+    if (metadata.getConfig() != null) {
+      String configuredPrincipal = metadata.getConfig().getPrincipal();
+      String configuredKeytabURI = metadata.getConfig().getKeytabURI();
+      if ((!Strings.isNullOrEmpty(configuredPrincipal) && Strings.isNullOrEmpty(configuredKeytabURI)) ||
+        (Strings.isNullOrEmpty(configuredPrincipal) && !Strings.isNullOrEmpty(configuredKeytabURI))) {
+        throw new BadRequestException(
+          String.format("Either both or none of the following two configurations must be configured. " +
+                          "Configured principal: %s, Configured keytabURI: %s",
+                        configuredPrincipal, configuredKeytabURI));
+      }
+      hasValidKerberosConf = true;
+    }
+
+    // check that if explore as principal is explicitly set to false then user has kerberos configuration
+    if (!metadata.getConfig().isExploreAsPrincipal() && !hasValidKerberosConf) {
+      throw new BadRequestException(
+        String.format("No kerberos principal or keytab-uri was provided while '%s' was set to true.",
+                      NamespaceConfig.EXPLORE_AS_PRINCIPAL));
+
+    }
 
     // store the meta first in the namespace store because namespacedLocationFactory needs to look up location
     // mapping from namespace config
@@ -205,31 +226,6 @@ public final class DefaultNamespaceAdmin implements NamespaceAdmin {
                                                                   existingConfig.getRootDirectory()));
         }
       }
-    }
-  }
-
-  private void validateKerberosConfig(NamespaceMeta metadata) throws BadRequestException {
-    // check that the user has configured either both or none of the following configuration: principal and keytab URI
-    boolean hasValidKerberosConf = false;
-    if (metadata.getConfig() != null) {
-      String configuredPrincipal = metadata.getConfig().getPrincipal();
-      String configuredKeytabURI = metadata.getConfig().getKeytabURI();
-      if ((!Strings.isNullOrEmpty(configuredPrincipal) && Strings.isNullOrEmpty(configuredKeytabURI)) ||
-        (Strings.isNullOrEmpty(configuredPrincipal) && !Strings.isNullOrEmpty(configuredKeytabURI))) {
-        throw new BadRequestException(
-          String.format("Either both or none of the following two configurations must be configured. " +
-                          "Configured principal: %s, Configured keytabURI: %s",
-                        configuredPrincipal, configuredKeytabURI));
-      }
-      hasValidKerberosConf = true;
-    }
-
-    // check that if explore as principal is explicitly set to false then user has kerberos configuration
-    if (!metadata.getConfig().isExploreAsPrincipal() && !hasValidKerberosConf) {
-      throw new BadRequestException(
-        String.format("No kerberos principal or keytab-uri was provided while '%s' was set to true.",
-                      NamespaceConfig.EXPLORE_AS_PRINCIPAL));
-
     }
   }
 
@@ -345,7 +341,7 @@ public final class DefaultNamespaceAdmin implements NamespaceAdmin {
     if (config != null && config.getKeytabURI() != null) {
       String keytabURI = config.getKeytabURI();
       if (keytabURI.isEmpty()) {
-        throw new BadRequestException("Cannot update keytab URI with the empty URI.");
+        throw new BadRequestException("Cannot update keytab URI with an empty URI.");
       }
       String existingKeytabURI = existingMeta.getConfig().getKeytabURI();
       if (existingKeytabURI == null) {
@@ -372,8 +368,6 @@ public final class DefaultNamespaceAdmin implements NamespaceAdmin {
                                                     "is created.", difference, namespaceId));
     }
     NamespaceMeta updatedMeta = builder.build();
-    // check whether the updated namespace meta still has valid Kerberos configuration
-    validateKerberosConfig(updatedMeta);
     nsStore.update(updatedMeta);
     // refresh the cache with new meta
     namespaceMetaCache.refresh(namespaceId);

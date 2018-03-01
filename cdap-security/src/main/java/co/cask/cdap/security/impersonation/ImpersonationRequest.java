@@ -30,7 +30,6 @@ public class ImpersonationRequest {
   private final ImpersonatedOpType impersonatedOpType;
   private final String principal;
   private final String keytabURI;
-  @Nullable
   private final Integer keytabURIVersion;
 
   // used when we do not know what is the principal for the entity id
@@ -45,7 +44,7 @@ public class ImpersonationRequest {
 
   // principal and keytabURI is needed for master side to look up the key tab file.
   public ImpersonationRequest(NamespacedEntityId entityId, ImpersonatedOpType impersonatedOpType, String principal,
-                              String keytabURI, @Nullable Integer keytabURIVersion) {
+                              String keytabURI, Integer keytabURIVersion) {
     this.principal = principal;
     this.entityId = entityId;
     this.impersonatedOpType = impersonatedOpType;

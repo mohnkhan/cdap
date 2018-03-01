@@ -92,6 +92,7 @@ public enum ArgumentName {
   NAMESPACE_NAME("namespace-name"),
   NAMESPACE_GROUP_NAME("group-name"),
   NAMESPACE_KEYTAB_PATH("keytab-URI"),
+  NAMESPACE_KEYTAB_PATH_VERSION("keytab-URI-version"),
   NAMESPACE_HBASE_NAMESPACE("hbase-namespace"),
   NAMESPACE_HIVE_DATABASE("hive-database"),
   NAMESPACE_ROOT_DIR("root-directory"),

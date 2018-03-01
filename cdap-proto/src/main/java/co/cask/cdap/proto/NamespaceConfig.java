@@ -52,7 +52,6 @@ public class NamespaceConfig {
   private final String principal;
   private final String groupName;
   private final String keytabURI;
-  @Nullable
   private final Integer keytabURIVersion;
 
   // scheduler queue name is kept non nullable unlike others like root directory, hbase namespace etc for backward
@@ -113,7 +112,10 @@ public class NamespaceConfig {
 
   @Nullable
   public Integer getKeytabURIVersion() {
-    return keytabURIVersion;
+    if (keytabURI == null) {
+      return null;
+    }
+    return keytabURIVersion == null ? 0 : keytabURIVersion;
   }
 
   public Boolean isExploreAsPrincipal() {
@@ -166,7 +168,7 @@ public class NamespaceConfig {
       Objects.equals(principal, other.principal) &&
       Objects.equals(groupName, other.groupName) &&
       Objects.equals(keytabURI, other.keytabURI) &&
-      Objects.equals(keytabURIVersion, other.keytabURIVersion) &&
+      Objects.equals(getKeytabURIVersion(), other.getKeytabURIVersion()) &&
       Objects.equals(exploreAsPrincipal, other.exploreAsPrincipal);
   }
 
@@ -174,7 +176,7 @@ public class NamespaceConfig {
   public int hashCode() {
     return Objects.hash(
       schedulerQueueName, rootDirectory, hbaseNamespace, hiveDatabase, principal, groupName, keytabURI,
-      keytabURIVersion, exploreAsPrincipal);
+      getKeytabURIVersion(), exploreAsPrincipal);
   }
 
   @Override
@@ -187,7 +189,7 @@ public class NamespaceConfig {
       ", principal='" + principal + '\'' +
       ", groupName='" + groupName + '\'' +
       ", keytabURI='" + keytabURI + '\'' +
-      ", keytabURIVersion='" + keytabURIVersion + '\'' +
+      ", keytabURIVersion='" + getKeytabURIVersion() + '\'' +
       ", exploreAsPrincipal='" + exploreAsPrincipal + '\'' +
       '}';
   }

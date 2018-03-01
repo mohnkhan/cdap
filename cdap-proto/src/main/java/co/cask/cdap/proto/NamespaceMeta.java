@@ -143,8 +143,7 @@ public final class NamespaceMeta {
     }
 
     public Builder incrementKeytabURIVersion() {
-      // Initialize the keytab URI version to 1 if it is null, otherwise increment the existing version by 1
-      keytabURIVersion = keytabURIVersion == null ? 1 : keytabURIVersion + 1;
+      keytabURIVersion++;
       return this;
     }
 

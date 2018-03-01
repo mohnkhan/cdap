@@ -456,7 +456,7 @@ public class NamespaceHttpHandlerTest extends AppFabricTestBase {
     Assert.assertEquals(200, response.getStatusLine().getStatusCode());
   }
 
-  private void verifyUpdateKeytabURI(NamespaceMeta meta, String uri, @Nullable Integer uriVersion) throws Exception {
+  private void verifyUpdateKeytabURI(NamespaceMeta meta, String uri, Integer uriVersion) throws Exception {
     setProperties(NAME, new NamespaceMeta.Builder(meta).setKeytabURI(uri).build());
     HttpResponse response = getNamespace(NAME);
     JsonObject namespace = readGetResponse(response);

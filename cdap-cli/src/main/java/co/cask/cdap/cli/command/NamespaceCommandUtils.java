@@ -58,6 +58,10 @@ public final class NamespaceCommandUtils {
       builder.append(ArgumentName.NAMESPACE_KEYTAB_PATH);
       builder.append("='").append(namespaceConfig.getKeytabURI()).append("', ");
     }
+    if (namespaceConfig.getKeytabURIVersion() != null) {
+      builder.append(ArgumentName.NAMESPACE_KEYTAB_PATH_VERSION);
+      builder.append("='").append(namespaceConfig.getKeytabURIVersion()).append("', ");
+    }
     if (namespaceConfig.getGroupName() != null) {
       builder.append(ArgumentName.NAMESPACE_GROUP_NAME);
       builder.append("='").append(namespaceConfig.getGroupName()).append("', ");
