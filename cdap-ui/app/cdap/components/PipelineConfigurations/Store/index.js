@@ -67,7 +67,8 @@ const TAB_OPTIONS = {
   PIPELINE_CONFIG: 'pipelineConfig',
   ENGINE_CONFIG: 'engineConfig',
   RESOURCES: 'resources',
-  ALERTS: 'alerts'
+  ALERTS: 'alerts',
+  COMPUTECONFIG: 'computeConfig'
 };
 
 const BATCH_INTERVAL_RANGE = range(1, 61);
