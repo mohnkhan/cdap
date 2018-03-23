@@ -15,7 +15,7 @@
 */
 
 import React, { Component } from 'react';
-import ProfilesListViewInPipeline from 'components/Cloud/Profiles/ListViewInPipeline';
+import ProfilesListViewInPipeline from 'components/PipelineConfigurations/ConfigurationsContent/ComputeTabContent/ProfilesListView';
 
 export default class ComputeTabContent extends Component {
   render() {

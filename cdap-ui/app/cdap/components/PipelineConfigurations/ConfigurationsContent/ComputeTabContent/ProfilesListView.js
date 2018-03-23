@@ -20,9 +20,17 @@ import {getCurrentNamespace} from 'services/NamespaceStore';
 import LoadingSVG from 'components/LoadingSVG';
 import classnames from 'classnames';
 import IconSVG from 'components/IconSVG';
+import {MyPreferenceApi} from 'api/preference';
+import {Observable} from 'rxjs/Observable';
+import PipelineDetailStore from 'components/PipelineDetails/store';
+import PipelineConfigurationsStore, {ACTIONS as PipelineConfigurationsActions} from 'components/PipelineConfigurations/Store';
+import {updatePipelineEditStatus} from 'components/PipelineConfigurations/Store/ActionCreator';
+import findIndex from 'lodash/findIndex';
+import uuidV4 from 'uuid/v4';
 
 require('./ListViewInPipeline.scss');
 
+export const PROFILE_NAME_PREFERENCE_PROPERTY = 'system.profile.name';
 export default class ProfilesListViewInPipeline extends Component {
 
   state = {
@@ -32,13 +40,22 @@ export default class ProfilesListViewInPipeline extends Component {
   };
 
   componentWillMount() {
-    myProfileApi.profiles({
-      namespace: getCurrentNamespace()
-    })
-      .subscribe(profiles => {
+    let appId = PipelineDetailStore.getState().name;
+    Observable.forkJoin(
+      myProfileApi.profiles({
+        namespace: getCurrentNamespace()
+      }),
+      MyPreferenceApi.getAppPreferences({
+        namespace: getCurrentNamespace(),
+        appId
+      })
+    )
+      .subscribe(([profiles, preferences]) => {
+        let selectedProfile = preferences['system.profile.name'];
         this.setState({
           loading: false,
-          profiles
+          profiles,
+          selectedProfile
         });
       });
   }
@@ -47,6 +64,24 @@ export default class ProfilesListViewInPipeline extends Component {
     this.setState({
       selectedProfile: profileName
     });
+    let {runtimeArgs} = PipelineConfigurationsStore.getState();
+    let pairs = [...runtimeArgs.pairs];
+    pairs = pairs.filter(pair => pair.key.length);
+    let existingProfile = findIndex(pairs, (pair) => pair.key === PROFILE_NAME_PREFERENCE_PROPERTY);
+    if (existingProfile === -1) {
+      pairs.push({
+        key: PROFILE_NAME_PREFERENCE_PROPERTY,
+        value: profileName,
+        uniqueId: 'id-' + uuidV4()
+      });
+    } else {
+      pairs[existingProfile].value = profileName;
+    }
+    PipelineConfigurationsStore.dispatch({
+      type: PipelineConfigurationsActions.SET_RUNTIME_ARGS,
+      payload: { runtimeArgs: { pairs } }
+    });
+    updatePipelineEditStatus();
   };
 
   renderGridHeader = () => {
