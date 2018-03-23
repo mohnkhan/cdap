@@ -45,7 +45,7 @@ const getFilteredRuntimeArgs = () => {
   let modifiedRuntimeArgs = {};
   let pairs = [...runtimeArgs.pairs];
   const preferencesToFilter = [PROFILE_NAME_PREFERENCE_PROPERTY];
-  pairs = pairs.filter(pair => preferencesToFilter.indexOf(pair.key) === -1);
+  pairs = pairs.filter(pair => (preferencesToFilter.indexOf(pair.key) === -1));
   if (!pairs.length) {
     pairs.push(getDefaultKeyValuePair());
   }
