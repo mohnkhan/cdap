@@ -29,7 +29,7 @@ import scala.collection.JavaConversions.mapAsScalaMap
   * @param startInfo the information obtained when a program run starts
   */
 case class RecordBuilder(namespace: String, program: String, run: String,
-                         statusTimes: scala.collection.Seq[(String, Long)], startInfo: Option[StartInfo]) {
+                         statusTimes: Seq[(String, Long)], startInfo: Option[StartInfo]) {
   import RecordBuilder._
   /**
     * Merges the contents of this with the other [[RecordBuilder]] by replacing empty values in this with
@@ -59,16 +59,14 @@ case class RecordBuilder(namespace: String, program: String, run: String,
     val statusTimeMap = statusTimes.groupBy(_._1).map(v => (v._1, v._2.map(_._2).min))
     val start = statusTimeMap.get("STARTING")
     val running = statusTimeMap.get("RUNNING")
-    // Get the earliest status with one of the ending status COMPLETED, KILLED and FAILED
-    val endTime = statusTimeMap.getOrElse("COMPLETED", Long.MaxValue)
-      .min(statusTimeMap.getOrElse("KILLED", Long.MaxValue))
-      .min(statusTimeMap.getOrElse("FAILED", Long.MaxValue))
-    val end = if (endTime == Long.MaxValue) None else Some(endTime)
+    // Get the earliest status with one of the ending statuses
+    val end = statusTimeMap.filterKeys(END_STATUSES.contains).values
+      .reduceOption(Math.min(_, _)) // avoid compilation error with Math.min(_, _) instead of Math.min
     val duration = if (start.isDefined && end.isDefined) Some(end.get - start.get) else None
-    val user = if (startInfo.isDefined) Some(startInfo.get.user) else None
-    val runtimeArgs = if (startInfo.isDefined) Some(startInfo.get.runtimeArgs) else None
+    val user = startInfo.map(_.user)
+    val runtimeArgs = startInfo.map(_.runtimeArgs)
     val r = Record(namespace, program, run, start, running, end, duration, user, runtimeArgs)
-    LOG.trace("RecordBuilder={}", this)
+    LOG.trace("RecordBuilder = {}", this)
     LOG.trace("Record = {}", r)
     r
   }
@@ -80,10 +78,14 @@ case class RecordBuilder(namespace: String, program: String, run: String,
   * @param user the user who starts the program run
   * @param runtimeArgs runtime arguments of the program run
   */
-case class StartInfo(user: String, runtimeArgs: scala.collection.Map[String, String]) {
+
+case class StartInfo(user: String,
+                     // Use scala.collection.Map to avoid compilation error in Janino generated code
+                     runtimeArgs: scala.collection.Map[String, String]) {
   def this(user: String, runtimeArgs: java.util.Map[String, String]) = this(user, mapAsScalaMap(runtimeArgs).toMap)
 }
 
 object RecordBuilder {
   val LOG = LoggerFactory.getLogger(RecordBuilder.getClass)
+  val END_STATUSES = Set("COMPLETED", "KILLED", "FAILED")
 }

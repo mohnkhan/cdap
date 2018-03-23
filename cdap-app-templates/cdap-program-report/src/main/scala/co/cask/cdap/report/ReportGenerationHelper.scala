@@ -16,14 +16,12 @@
 package co.cask.cdap.report
 
 import java.io.{IOException, PrintWriter}
-import java.util.Collections
 
 import co.cask.cdap.report.ReportGenerationSpark.ReportSparkHandler
 import co.cask.cdap.report.proto.ReportGenerationRequest
-import co.cask.cdap.report.proto.ReportGenerationRequest.{Filter, Sort}
 import co.cask.cdap.report.util.Constants
 import com.google.gson._
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 import org.apache.twill.filesystem.Location
 import org.slf4j.LoggerFactory
 
@@ -37,7 +35,8 @@ object ReportGenerationHelper {
   val GSON = new Gson()
   val LOG = LoggerFactory.getLogger(ReportGenerationHelper.getClass)
   val RECORD_COL = "record"
-  val REQUIRED_FIELDS = Seq(Constants.NAMESPACE, Constants.PROGRAM, Constants.RUN)
+  val REQUIRED_FIELDS = Set(Constants.NAMESPACE, Constants.PROGRAM, Constants.RUN)
+  val REQUIRED_FILTER_FIELDS = Set(Constants.START, Constants.END)
 
   /**
     * Generates a report file according to the given request from the given program run meta files.
@@ -74,7 +73,7 @@ object ReportGenerationHelper {
     * accompanied by an empty _SUCCESS file indicating success.
     *
     * @param spark the spark session to run report generation with
-    * @param request the request containing the requirement for the report generation
+    * @param request the report generation request
     * @param inputURIs URIs of the avro files containing program run meta records
     * @param outputLocation location of the output directory where the report file and _SUCCESS file will be written
     * @throws java.io.IOException when fails to write to the _SUCCESS file
@@ -84,75 +83,21 @@ object ReportGenerationHelper {
                      outputLocation: Location): Unit = {
     import spark.implicits._
     val df = spark.read.format("com.databricks.spark.avro").load(inputURIs: _*)
-    // Group the program run meta records by program run Id's and aggregate grouped records into a column
-    // with data type Record. The aggregated DataFrame aggDf will have two columns: "run" and "record"
+    // Get the fields to be included in the final report and additional fields required for filtering and sorting
+    val (reportFields: Set[String], additionalFields: Set[String]) = getReportAndAdditionalFields(request)
+    // Create an aggregator that aggregates grouped data into a column with data type Record.
     val aggCol = new RecordAggregator().toColumn.alias(RECORD_COL).as[Record]
     // TODO: configure partitions. The default number of partitions is 200
-    var aggDf = df.groupBy(Constants.RUN).agg(aggCol)
-    // Construct a set of fields to be included in the final report with required fields and fields from the request
-    val reportFields: collection.mutable.LinkedHashSet[String] =
-    collection.mutable.LinkedHashSet(REQUIRED_FIELDS: _*) ++ Option (request.getFields)
-      .getOrElse[java.util.List[String]](Collections.emptyList[String]())
-    LOG.debug("Fields to be included in the report: {}", reportFields)
-    // Create a set of additional fields to be included as columns in the aggregated DataFrame
-    // Initialize the set with "start" and "end" for filtering records according to the time range [start, end)
-    // specified in the request
-    var additionalFields = collection.mutable.LinkedHashSet(Constants.START, Constants.END)
-    // Add field names for filtering
-    additionalFields ++= Option(request.getFilters)
-      .getOrElse[java.util.List[Filter[_]]](Collections.emptyList[Filter[_]]()).map(f => f.getFieldName)
-    // Add field names for sorting
-    additionalFields ++= Option(request.getSort)
-      .getOrElse[java.util.List[Sort]](Collections.emptyList[Sort]()).map(s => s.getFieldName)
-    LOG.debug("Additional fields for filtering and sorting: {}", additionalFields)
+    // Group the program run meta records by program run Id's and aggregate the grouped data with aggCol.
+    // The initial aggregated DataFrame will have two columns:
     // With every unique field in reportFields and additionalFields, construct and add new columns from record column
-    // in aggregated DataFrame
-    (reportFields ++ additionalFields).foreach(fieldName => {
-      aggDf = aggDf.withColumn(fieldName, aggDf(RECORD_COL).getField(fieldName))
-    })
-    // Construct the filter column starting with condition:
-    // aggDf("start") not null AND aggDf("start") < request.getEnd
-    //   AND (aggDf("end") is null OR aggDf("end") > request.getStart)
-    var filterCol = aggDf(Constants.START).isNotNull && aggDf(Constants.START) < request.getEnd &&
-      (aggDf(Constants.END).isNull || aggDf(Constants.END) >= request.getStart)
-    LOG.debug("Initial filter column: {}", filterCol)
-    // Combine additional filters from the request to the filter column
-    Option(request.getFilters).getOrElse[java.util.List[Filter[_]]](Collections.emptyList[Filter[_]]()).foreach(f => {
-        val fieldCol = aggDf(f.getFieldName)
-        // the filed to be filtered must contain non-null value
-        filterCol &&= fieldCol.isNotNull
-        // the filter is either a RangeFilter or ValueFilter. Construct the filter according to the filter type
-        f match {
-          case rangeFilter: ReportGenerationRequest.RangeFilter[_] => {
-            val min = rangeFilter.getRange.getMin
-            if (Option(min).isDefined) {
-              filterCol &&= fieldCol >= min
-            }
-            val max = rangeFilter.getRange.getMax
-            if (Option(max).isDefined) {
-              filterCol &&= fieldCol < max
-            }
-            // cast f.getFieldName to Any to avoid ambiguous method reference error
-            LOG.debug("Added RangeFilter {} for field {}", rangeFilter, f.getFieldName: Any)
-          }
-          case valueFilter: ReportGenerationRequest.ValueFilter[_] => {
-            val whitelist = valueFilter.getWhitelist
-            if (Option(whitelist).isDefined) {
-              filterCol &&= fieldCol.isin(whitelist: _*)
-            }
-            val blacklist = valueFilter.getBlacklist
-            if (Option(blacklist).isDefined) {
-              filterCol &&= !fieldCol.isin(blacklist: _*)
-            }
-            // cast f.getFieldName to Any to avoid ambiguous method reference error
-            LOG.debug("Added ValueFilter {} for field {}", valueFilter, f.getFieldName: Any)
-          }
-        }
-      })
-    LOG.info("Final filter column: {}", filterCol)
-    var resultDf = aggDf.filter(filterCol)
+    // in aggregated DataFrame, in addition to the two initial columns "run" and "record"
+    val aggDf = (reportFields ++ additionalFields).foldLeft(df.groupBy(Constants.RUN).agg(aggCol))((df, fieldName) =>
+      df.withColumn(fieldName, df(RECORD_COL).getField(fieldName)))
+    // Filter the aggregated DataFrame
+    var resultDf = aggDf.filter(getFilter(request, aggDf))
     // If sort is specified in the request, apply sorting to the result DataFrame
-    Option(request.getSort).getOrElse[java.util.List[Sort]](Collections.emptyList[Sort]()).foreach(sort => {
+    Option(request.getSort).foreach(_.foreach(sort => {
       val sortField = aggDf(sort.getFieldName)
       sort.getOrder match {
         case ReportGenerationRequest.Order.ASCENDING => {
@@ -164,7 +109,7 @@ object ReportGenerationHelper {
           LOG.debug("Sort by {} in descending order", sortField)
         }
       }
-    })
+    }))
     // drop the columns which should not be included in the report
     resultDf.columns.foreach(col => if (!reportFields.contains(col)) resultDf = resultDf.drop(col))
     resultDf.persist()
@@ -181,5 +126,79 @@ object ReportGenerationHelper {
         throw e
       }
     } finally if (writer.isDefined) writer.get.close()
+  }
+
+  /**
+    * Gets the fields to be included in the final report and additional fields required for filtering and sorting
+    *
+    * @param request the report generation request
+    * @return a tuple containing the set of fields to be included in the final report and
+    *         the set of additional fields for filtering and sorting
+    */
+  def getReportAndAdditionalFields(request: ReportGenerationRequest): (Set[String], Set[String]) = {
+    // Construct a set of fields to be included in the final report with required fields and fields from the request
+    val reportFields: Set[String] = REQUIRED_FIELDS ++ Option(request.getFields).map(_.toSet).getOrElse(Nil)
+    LOG.debug("Fields to be included in the report: {}", reportFields)
+    // Initialize the set with "start" and "end" for filtering records according to the time range [start, end)
+    // specified in the request.
+    val additionalFields: Set[String] = REQUIRED_FILTER_FIELDS ++
+      // Add field names for filtering
+      Option(request.getFilters).map(_.toSet[ReportGenerationRequest.Filter[_]].map(_.getFieldName)).getOrElse(Nil) ++
+      // Add field names for sorting
+      Option(request.getSort).map(_.toSet[ReportGenerationRequest.Sort].map(_.getFieldName)).getOrElse(Nil)
+    LOG.debug("Additional fields for filtering and sorting: {}", additionalFields)
+    (reportFields, additionalFields)
+  }
+
+  /**
+    * Gets a filter constructed from the report time range and filters in the report generation request.
+    *
+    * @param request the report generation request
+    * @param df the DateFrame to apply filter on
+    * @return the filter
+    */
+  def getFilter(request: ReportGenerationRequest, df: DataFrame): Column = {
+    // Construct the filter column starting with condition:
+    // aggDf("start") not null AND aggDf("start") < request.getEnd
+    //   AND (aggDf("end") is null OR aggDf("end") >= request.getStart)
+    // Then combine additional filters from the request with AND
+    val filterCol = Option(request.getFilters).map(_.toList).getOrElse(Nil).foldLeft(
+      df(Constants.START).isNotNull && df(Constants.START) < request.getEnd &&
+        (df(Constants.END).isNull || df(Constants.END) >= request.getStart))(
+      (fCol: Column, filter: ReportGenerationRequest.Filter[_]) => {
+      val fieldCol = df(filter.getFieldName)
+      // the filed to be filtered must contain non-null value
+      var newFilterCol = fieldCol.isNotNull
+      // the filter is either a RangeFilter or ValueFilter. Construct the filter according to the filter type
+      filter match {
+        case rangeFilter: ReportGenerationRequest.RangeFilter[_] => {
+          val min = rangeFilter.getRange.getMin
+          if (Option(min).isDefined) {
+            newFilterCol &&= fieldCol >= min
+          }
+          val max = rangeFilter.getRange.getMax
+          if (Option(max).isDefined) {
+            newFilterCol &&= fieldCol < max
+          }
+          // cast filter.getFieldName to Any to avoid ambiguous method reference error
+          LOG.debug("Added RangeFilter {} for field {}", rangeFilter, filter.getFieldName: Any)
+        }
+        case valueFilter: ReportGenerationRequest.ValueFilter[_] => {
+          val whitelist = valueFilter.getWhitelist
+          if (Option(whitelist).isDefined) {
+            newFilterCol &&= fieldCol.isin(whitelist: _*)
+          }
+          val blacklist = valueFilter.getBlacklist
+          if (Option(blacklist).isDefined) {
+            newFilterCol &&= !fieldCol.isin(blacklist: _*)
+          }
+          // cast filter.getFieldName to Any to avoid ambiguous method reference error
+          LOG.debug("Added ValueFilter {} for field {}", valueFilter, filter.getFieldName: Any)
+        }
+      }
+      fCol && newFilterCol
+    })
+    LOG.debug("Final filter column: {}", filterCol)
+    filterCol
   }
 }

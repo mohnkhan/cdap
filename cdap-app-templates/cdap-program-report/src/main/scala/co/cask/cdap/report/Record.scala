@@ -20,4 +20,6 @@ package co.cask.cdap.report
   */
 case class Record(namespace: String, program: String, run: String, start: Option[Long], running: Option[Long],
                   end: Option[Long], duration: Option[Long], user: Option[String],
+                  // use scala.collection.Map[String,String]] instead of Map[String, String] to avoid compilation error
+                  // in Janino generated code
                   runtimeArgs: Option[scala.collection.Map[String, String]])
