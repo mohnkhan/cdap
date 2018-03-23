@@ -24,6 +24,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 
 import java.lang.reflect.Type;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /**
@@ -57,38 +58,45 @@ public class FilterDeserializer implements JsonDeserializer<ReportGenerationRequ
     if (fieldName == null) {
       throw new JsonParseException("Field name must be specified for filters");
     }
-    ReportField fieldType = ReportField.valueOfFieldName(fieldName.getAsString());
-    if (fieldType == null) {
-      throw new JsonParseException("Invalid field name " + fieldName);
+    ReportField field = ReportField.valueOfFieldName(fieldName.getAsString());
+    if (field == null) {
+      throw new JsonParseException(String.format("Invalid field name '%s'. Field name must be one of: [%s]", fieldName,
+                                                 String.join(", ", ReportField.FIELD_NAME_MAP.keySet())));
     }
     if (object.get("range") != null) {
       // If range filter cannot be applied to the given field, such as ReportField.NAMESAPCE, throw exception.
-      if (!fieldType.getApplicableFilters().contains(ReportField.FilterType.RANGE)) {
-        throw new JsonParseException("Field " + fieldName + " cannot be filtered by range");
+      if (!field.getApplicableFilters().contains(ReportField.FilterType.RANGE)) {
+        throw new JsonParseException(
+          String.format("Field '%s' cannot be filtered by range. It can only be filtered by: [%s]", fieldName,
+                        field.getApplicableFilters().stream().map(f -> f.name().toLowerCase())
+                          .collect(Collectors.joining(","))));
       }
       // Use the type token that matches the class of this field's value to deserialize the JSON
-      if (fieldType.getValueClass().equals(Integer.class)) {
+      if (field.getValueClass().equals(Integer.class)) {
         return context.deserialize(json, INT_RANGE_FILTER_TYPE);
       }
-      if (fieldType.getValueClass().equals(Long.class)) {
+      if (field.getValueClass().equals(Long.class)) {
         return context.deserialize(json, LONG_RANGE_FILTER_TYPE);
       }
       // this should never happen. If the field's applicable filters contains range filter,
       // there must be a know class matches the class of its value
       throw new JsonParseException(String.format("Field %s with value type %s cannot be filtered by range", fieldName,
-                                                 fieldType.getValueClass().getName()));
+                                                 field.getValueClass().getName()));
     }
     // If value filter cannot be applied to the given field, such as ReportField.RUNTIME_ARGS, throw exception.
-    if (!fieldType.getApplicableFilters().contains(ReportField.FilterType.VALUE)) {
-      throw new JsonParseException("Field " + fieldName + " cannot be filtered by values");
+    if (!field.getApplicableFilters().contains(ReportField.FilterType.VALUE)) {
+      throw new JsonParseException(
+        String.format("Field '%s' cannot be filtered by values. It can only be filtered by: [%s]", fieldName,
+                      field.getApplicableFilters().stream().map(f -> f.name().toLowerCase())
+                        .collect(Collectors.joining(","))));
     }
     // Use the type token that matches the class of this field's value to deserialize the JSON
-    if (fieldType.getValueClass().equals(String.class)) {
+    if (field.getValueClass().equals(String.class)) {
       return context.deserialize(json, STRING_VALUE_FILTER_TYPE);
     }
     // this should never happen. If the field's applicable filters contains value filter,
     // there must be a know class matches the class of its value
     throw new JsonParseException(String.format("Field %s with value type %s cannot be filtered by values", fieldName,
-                                               fieldType.getValueClass().getName()));
+                                               field.getValueClass().getName()));
   }
 }

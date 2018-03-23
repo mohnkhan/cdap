@@ -15,6 +15,7 @@
  */
 package co.cask.cdap.report.util;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -54,12 +55,39 @@ public enum ReportField {
   private final List<FilterType> applicableFilters;
   private final boolean sortable;
 
-  private static final Map<String, ReportField> FIELD_NAME_MAP;
+  /**
+   * A map with all valid field names as keys and the corresponding {@link ReportField} as values
+   */
+  public static final Map<String, ReportField> FIELD_NAME_MAP;
+  /**
+   * A list of the names of all fields that can be used to sort a report
+   */
+  public static final List<String> SORTABLE_FIELDS;
+  /**
+   * A list of the names of all fields that can be filtered by values
+   */
+  public static final List<String> VALUE_FILTER_APPLICABLE_FIELDS;
+  /**
+   * A list of the names of all fields that can be filtered by range
+   */
+  public static final List<String> RANGE_FILTER_APPLICABLE_FIELDS;
 
   static {
     FIELD_NAME_MAP = new HashMap<>();
-    for (ReportField type : ReportField.values()) {
-      FIELD_NAME_MAP.put(type.getFieldName(), type);
+    SORTABLE_FIELDS = new ArrayList<>();
+    VALUE_FILTER_APPLICABLE_FIELDS = new ArrayList<>();
+    RANGE_FILTER_APPLICABLE_FIELDS = new ArrayList<>();
+    for (ReportField field : ReportField.values()) {
+      FIELD_NAME_MAP.put(field.getFieldName(), field);
+      if (field.isSortable()) {
+        SORTABLE_FIELDS.add(field.getFieldName());
+      }
+      if (field.getApplicableFilters().contains(FilterType.VALUE)) {
+        VALUE_FILTER_APPLICABLE_FIELDS.add(field.getFieldName());
+      }
+      if (field.getApplicableFilters().contains(FilterType.RANGE)) {
+        RANGE_FILTER_APPLICABLE_FIELDS.add(field.getFieldName());
+      }
     }
   }
 
@@ -92,7 +120,7 @@ public enum ReportField {
   }
 
   /**
-   * @return {@code true} if this field can be used to sort the report, {@code false} otherwise.
+   * @return {@code true} if this field can be used to sort a report, {@code false} otherwise.
    */
   public boolean isSortable() {
     return sortable;

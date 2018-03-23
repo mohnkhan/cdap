@@ -103,7 +103,8 @@ public class ReportGenerationRequest {
       errors.add("'fields' must be specified.");
     } else {
       errors.addAll(fields.stream().filter(field -> !ReportField.isValidField(field))
-                      .map(field -> String.format("Invalid field name '%s' in fields.", field))
+                      .map(field -> String.format("Invalid field name '%s' in fields. Field name must be one of: [%s]",
+                                                  field, String.join(", ", ReportField.FIELD_NAME_MAP.keySet())))
                       .collect(Collectors.toList()));
     }
     // No need to check whether filter field name and type are valid since this is done during JSON deserialization
@@ -120,15 +121,17 @@ public class ReportGenerationRequest {
       for (Sort sortField : sort) {
         ReportField sortFieldType = ReportField.valueOfFieldName(sortField.getFieldName());
         if (sortFieldType == null) {
-          errors.add(String.format("Invalid field name '%s' in sort.", sortField.getFieldName()));
+          errors.add(String.format("Invalid field name '%s' in sort. Field name must be one of: [%s]",
+                                   sortField.getFieldName(), String.join(", ", ReportField.FIELD_NAME_MAP.keySet())));
         }
         if (!sortFieldType.isSortable()) {
-          errors.add(String.format("Field '%s' in sort is not sortable.", sortField.getFieldName()));
+          errors.add(String.format("Field '%s' in sort is not sortable. Only fields: [%s] are sortable",
+                                   sortField.getFieldName(), String.join(", ", ReportField.SORTABLE_FIELDS)));
         }
       }
     }
     if (errors.size() > 0) {
-      throw new IllegalArgumentException("Invalid report generation request: " + String.join(",", errors));
+      throw new IllegalArgumentException("Invalid report generation request: " + String.join("; ", errors));
     }
   }
 
