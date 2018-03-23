@@ -27,6 +27,13 @@ const initialState = {
   pairs: []
 };
 
+export const getDefaultKeyValuePair = () => ({
+  key : '',
+  value : '',
+  uniqueId: uuidV4(),
+  provided: false
+});
+
 const keyValues = (state = initialState, action = defaultAction) => {
   let stateCopy;
   switch (action.type) {
@@ -64,12 +71,7 @@ const keyValues = (state = initialState, action = defaultAction) => {
       stateCopy = Object.assign({}, state);
       stateCopy.pairs.splice(action.payload.index, 1);
       if (!stateCopy.pairs.length) {
-        stateCopy.pairs.push({
-          key : '',
-          value : '',
-          uniqueId: uuidV4(),
-          provided: false
-        });
+        stateCopy.pairs.push(getDefaultKeyValuePair());
       }
       return stateCopy;
     case KeyValueStoreActions.onReset:
