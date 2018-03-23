@@ -22,9 +22,12 @@ import PipelineConfigurations from 'components/PipelineConfigurations';
 import {MyPreferenceApi} from 'api/preference';
 import {getCurrentNamespace} from 'services/NamespaceStore';
 import PipelineConfigurationsStore, {ACTIONS as PipelineConfigurationsActions} from 'components/PipelineConfigurations/Store';
-import {revertConfigsToSavedValues, getMacrosResolvedByPrefs} from 'components/PipelineConfigurations/Store/ActionCreator';
-import isEqual from 'lodash/isEqual';
+import {getMacrosResolvedByPrefs} from 'components/PipelineConfigurations/Store/ActionCreator';
 import T from 'i18n-react';
+import PipelineDetailStore from 'components/PipelineDetails/store';
+import {MyPipelineApi} from 'api/pipeline';
+import uuidV4 from 'uuid/v4';
+import {objectQuery} from 'services/helpers';
 
 const PREFIX = 'features.PipelineDetails.TopPanel';
 
@@ -42,35 +45,55 @@ export default class PipelineConfigureButton extends Component {
 
   getRuntimeArgumentsAndToggleModeless = () => {
     if (!this.state.showModeless) {
-      if (Object.keys(this.props.resolvedMacros).length !== 0) {
-        MyPreferenceApi
-          .getAppPreferencesResolved({
-            namespace: getCurrentNamespace(),
-            appId: this.props.pipelineName
-          })
-          .subscribe(res => {
-            let newResolvedMacros = getMacrosResolvedByPrefs(res, this.props.resolvedMacros);
+      const params = {
+        namespace: getCurrentNamespace(),
+        appId: PipelineDetailStore.getState().name
+      };
 
-            // If preferences have changed, then update macro values with new preferences.
-            // Otherwise, keep the values as they are
-            if (!isEqual(newResolvedMacros, this.props.resolvedMacros)) {
-              PipelineConfigurationsStore.dispatch({
-                type: PipelineConfigurationsActions.SET_RESOLVED_MACROS,
-                payload: { resolvedMacros: newResolvedMacros }
-              });
+      MyPipelineApi.fetchMacros(params)
+        .combineLatest(MyPreferenceApi.getAppPreferencesResolved(params))
+        .subscribe((res) => {
+          let macrosSpec = res[0];
+          let macrosMap = {};
+          let macros = [];
+          macrosSpec.map(ms => {
+            if (objectQuery(ms, 'spec', 'properties', 'macros', 'lookupProperties')) {
+              macros = macros.concat(ms.spec.properties.macros.lookupProperties);
             }
-            revertConfigsToSavedValues();
-            this.toggleModeless();
-          }, (err) => {
-            console.log(err);
           });
-      } else {
-        revertConfigsToSavedValues();
-        // Have to set timeout here to make sure any other config modeless will be closed
-        // before opening this one
-        setTimeout(() => this.toggleModeless());
-      }
+          macros.forEach(macro => {
+            macrosMap[macro] = '';
+          });
 
+          let currentAppPrefs = res[1];
+          let resolvedMacros = getMacrosResolvedByPrefs(currentAppPrefs, macrosMap);
+
+          PipelineConfigurationsStore.dispatch({
+            type: PipelineConfigurationsActions.SET_RESOLVED_MACROS,
+            payload: { resolvedMacros }
+          });
+          const getPairs = (map) => (
+            Object
+              .entries(map)
+              .filter(([key]) => key.length)
+              .map(([key, value]) => ({key, value, uniqueId: uuidV4()}))
+          );
+          let runtimeArgsPairs = getPairs(currentAppPrefs);
+          let resolveMacrosPairs = getPairs(resolvedMacros);
+
+          PipelineConfigurationsStore.dispatch({
+            type: PipelineConfigurationsActions.SET_RUNTIME_ARGS,
+            payload: {
+              runtimeArgs: {
+                pairs: runtimeArgsPairs.concat(resolveMacrosPairs)
+              }
+            }
+          });
+          this.toggleModeless();
+        }, (err) => {
+          console.log(err);
+        }
+      );
     } else {
       this.toggleModeless();
     }

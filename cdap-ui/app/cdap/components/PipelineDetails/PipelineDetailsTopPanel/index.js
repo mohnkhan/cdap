@@ -28,6 +28,7 @@ import {MyPipelineApi} from 'api/pipeline';
 import {MyPreferenceApi} from 'api/preference';
 import {objectQuery} from 'services/helpers';
 import {GLOBALS} from 'services/global-constants';
+import uuidV4 from 'uuid/v4';
 
 require('./PipelineDetailsTopPanel.scss');
 
@@ -63,7 +64,7 @@ export default class PipelineDetailsTopPanel extends Component {
       namespace: getCurrentNamespace(),
       appId: PipelineDetailStore.getState().name
     };
-
+    // FIXME: This should be extracted. It is the re-used in PipelineCongigureButton module.
     MyPipelineApi.fetchMacros(params)
       .combineLatest(MyPreferenceApi.getAppPreferencesResolved(params))
       .subscribe((res) => {
@@ -86,6 +87,23 @@ export default class PipelineDetailsTopPanel extends Component {
           type: PipelineConfigurationsActions.SET_RESOLVED_MACROS,
           payload: { resolvedMacros }
         });
+        const getPairs = (map) => (
+          Object
+            .entries(map)
+            .filter(([key]) => key.length)
+            .map(([key, value]) => ({key, value, uniqueId: uuidV4()}))
+        );
+        let runtimeArgsPairs = getPairs(currentAppPrefs);
+        let resolveMacrosPairs = getPairs(resolvedMacros);
+
+        PipelineConfigurationsStore.dispatch({
+          type: PipelineConfigurationsActions.SET_RUNTIME_ARGS,
+          payload: {
+            runtimeArgs: {
+              pairs: runtimeArgsPairs.concat(resolveMacrosPairs)
+            }
+          }
+        });
       }, (err) => {
         console.log(err);
       }
@@ -94,7 +112,7 @@ export default class PipelineDetailsTopPanel extends Component {
   render() {
     return (
       <Provider store={PipelineDetailStore}>
-        <div className = "pipeline-details-top-panel">
+        <div className="pipeline-details-top-panel">
           <PipelineDetailsMetadata />
           <ConnectedPipelineDetailsButtons />
           <PipelineDetailsDetailsActions />
