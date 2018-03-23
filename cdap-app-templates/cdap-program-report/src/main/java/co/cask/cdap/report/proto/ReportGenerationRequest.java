@@ -18,9 +18,11 @@ package co.cask.cdap.report.proto;
 
 import co.cask.cdap.report.util.ReportField;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /**
@@ -90,46 +92,43 @@ public class ReportGenerationRequest {
    * @throws IllegalArgumentException if this request is not valid.
    */
   public void validate() {
+    List<String> errors = new ArrayList<>();
     if (start == null) {
-      throw new IllegalArgumentException("'start' must be specified.");
+      errors.add("'start' must be specified.");
     }
     if (end == null) {
-      throw new IllegalArgumentException("'end' must be specified.");
+      errors.add("'end' must be specified.");
     }
     if (fields == null || fields.isEmpty()) {
-      throw new IllegalArgumentException("'fields' must be specified.");
-    }
-    for (String field : fields) {
-      if (!ReportField.isValidField(field)) {
-        throw new IllegalArgumentException(String.format("Invalid field name '%s' in fields.", field));
-      }
+      errors.add("'fields' must be specified.");
+    } else {
+      errors.addAll(fields.stream().filter(field -> !ReportField.isValidField(field))
+                      .map(field -> String.format("Invalid field name '%s' in fields.", field))
+                      .collect(Collectors.toList()));
     }
     // No need to check whether filter field name and type are valid since this is done during JSON deserialization
     if (filters != null) {
-      Set<String> existingFilterFields = new HashSet<>();
-      for (Filter filterField : filters) {
-        if (existingFilterFields.contains(filterField.getFieldName())) {
-          throw new IllegalArgumentException(String.format("Field '%s' is duplicated in filters.",
-                                                           filterField.getFieldName()));
-        }
-        existingFilterFields.add(filterField.getFieldName());
-      }
+      Set<String> uniqueFilterFields = new HashSet<>();
+      errors.addAll(filters.stream().filter(filter -> !uniqueFilterFields.add(filter.getFieldName()))
+                      .map(filter -> String.format("Field '%s' is duplicated in filters.", filter.getFieldName()))
+                      .collect(Collectors.toList()));
     }
     if (sort != null) {
       if (sort.size() > 1) {
-        throw new IllegalArgumentException("Currently only one field is supported in sort.");
+        errors.add("Currently only one field is supported in sort.");
       }
       for (Sort sortField : sort) {
         ReportField sortFieldType = ReportField.valueOfFieldName(sortField.getFieldName());
         if (sortFieldType == null) {
-          throw new IllegalArgumentException(String.format("Invalid field name '%s' in sort.",
-                                                           sortField.getFieldName()));
+          errors.add(String.format("Invalid field name '%s' in sort.", sortField.getFieldName()));
         }
         if (!sortFieldType.isSortable()) {
-          throw new IllegalArgumentException(String.format("Field '%s' in sort is not sortable.",
-                                                           sortField.getFieldName()));
+          errors.add(String.format("Field '%s' in sort is not sortable.", sortField.getFieldName()));
         }
       }
+    }
+    if (errors.size() > 0) {
+      throw new IllegalArgumentException("Invalid report generation request: " + String.join(",", errors));
     }
   }
 

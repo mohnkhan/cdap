@@ -27,7 +27,7 @@ import java.lang.reflect.Type;
 import javax.annotation.Nullable;
 
 /**
- * Deserializer for {@link ReportGenerationRequest.Filter}
+ * JSON deserializer for {@link ReportGenerationRequest.Filter}
  */
 public class FilterDeserializer implements JsonDeserializer<ReportGenerationRequest.Filter> {
   private static final Type INT_RANGE_FILTER_TYPE =

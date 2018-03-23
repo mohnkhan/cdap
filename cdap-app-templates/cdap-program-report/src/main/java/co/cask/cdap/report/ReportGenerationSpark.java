@@ -240,7 +240,7 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
         reportRequest = decodeRequestBody(requestJson, REPORT_GENERATION_REQUEST_TYPE);
         reportRequest.validate();
       } catch (IllegalArgumentException e) {
-        responder.sendError(400, "Invalid report generation request: " + e.getMessage());
+        responder.sendError(400, e.getMessage());
         return;
       }
 
