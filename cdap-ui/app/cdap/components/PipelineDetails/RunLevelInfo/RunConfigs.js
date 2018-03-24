@@ -50,6 +50,7 @@ export default class RunConfigs extends Component {
       try {
         runtimeArgs = JSON.parse(runtimeArgs);
         delete runtimeArgs['logical.start.time'];
+        delete runtimeArgs[''];
       } catch (e) {
         console.log('ERROR: Cannot parse runtime arguments');
         runtimeArgs = {};

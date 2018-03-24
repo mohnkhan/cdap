@@ -247,7 +247,7 @@ const updatePipeline = () => {
 const runPipeline = () => {
   setRunButtonLoading(true);
   let { name, artifact } = PipelineDetailStore.getState();
-  let { runtimeArgs  } = PipelineConfigurationsStore.getState();
+  let { runtimeArgs } = PipelineConfigurationsStore.getState();
 
   let params = {
     namespace: getCurrentNamespace(),
@@ -257,6 +257,7 @@ const runPipeline = () => {
     action: 'start'
   };
   runtimeArgs = convertKeyValuePairsObjToMap(runtimeArgs);
+  delete runtimeArgs[""];
   MyProgramApi.action(params, runtimeArgs)
   .subscribe(
     () => {},
