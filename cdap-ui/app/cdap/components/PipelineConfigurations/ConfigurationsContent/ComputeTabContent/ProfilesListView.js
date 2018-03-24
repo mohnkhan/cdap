@@ -50,7 +50,7 @@ export default class ProfilesListViewInPipeline extends Component {
         appId
       })
     )
-      .subscribe(([profiles, preferences]) => {
+      .subscribe(([profiles = [], preferences = {}]) => {
         let selectedProfile = preferences['system.profile.name'];
         this.setState({
           loading: false,
@@ -127,6 +127,32 @@ export default class ProfilesListViewInPipeline extends Component {
     );
   };
 
+  renderGrid = () => {
+    if (!this.state.profiles.length) {
+      return (
+        <div>
+          <strong> No Profiles created </strong>
+          <div>
+            <a href={`/cdap/ns/${getCurrentNamespace()}/create-profile`}>
+              Click here
+            </a>
+            <span> to create one </span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div>
+        <strong> Select the compute profile you want to use to run this pipeline</strong>
+        <div className="profiles-count text-right">{this.state.profiles.length} Compute Profiles</div>
+        <div className="grid grid-container">
+          {this.renderGridHeader()}
+          {this.renderGridBody()}
+        </div>
+      </div>
+    );
+  };
+
   render() {
     if (this.state.loading) {
       return (
@@ -137,12 +163,7 @@ export default class ProfilesListViewInPipeline extends Component {
     }
     return (
       <div className="profiles-list-view-on-pipeline">
-        <strong> Select the compute profile you want to use to run this pipeline</strong>
-        <div className="profiles-count text-right">{this.state.profiles.length} Compute Profiles</div>
-        <div className="grid grid-container">
-          {this.renderGridHeader()}
-          {this.renderGridBody()}
-        </div>
+        {this.renderGrid()}
       </div>
     );
   }
