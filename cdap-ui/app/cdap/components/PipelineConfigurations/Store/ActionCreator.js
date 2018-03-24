@@ -30,6 +30,11 @@ import {Observable} from 'rxjs/Observable';
 import difference from 'lodash/difference';
 import {PROFILE_NAME_PREFERENCE_PROPERTY} from 'components/PipelineConfigurations/ConfigurationsContent/ComputeTabContent/ProfilesListView';
 
+const RUNTIME_ARGS_TO_SKIP_DURING_DISPLAY = [
+  PROFILE_NAME_PREFERENCE_PROPERTY,
+  'logical.start.time'
+];
+
 const applyRuntimeArgs = () => {
   let runtimeArgs = PipelineConfigurationsStore.getState().runtimeArgs;
   PipelineConfigurationsStore.dispatch({
@@ -44,8 +49,7 @@ const getFilteredRuntimeArgs = () => {
   let runtimeArgs = PipelineConfigurationsStore.getState().runtimeArgs;
   let modifiedRuntimeArgs = {};
   let pairs = [...runtimeArgs.pairs];
-  const preferencesToFilter = [PROFILE_NAME_PREFERENCE_PROPERTY];
-  pairs = pairs.filter(pair => (preferencesToFilter.indexOf(pair.key) === -1));
+  pairs = pairs.filter(pair => (RUNTIME_ARGS_TO_SKIP_DURING_DISPLAY.indexOf(pair.key) === -1));
   if (!pairs.length) {
     pairs.push(getDefaultKeyValuePair());
   }

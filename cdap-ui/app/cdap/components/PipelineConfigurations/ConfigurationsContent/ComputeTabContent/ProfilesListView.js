@@ -51,7 +51,7 @@ export default class ProfilesListViewInPipeline extends Component {
       })
     )
       .subscribe(([profiles = [], preferences = {}]) => {
-        let selectedProfile = preferences['system.profile.name'];
+        let selectedProfile = preferences[PROFILE_NAME_PREFERENCE_PROPERTY];
         this.setState({
           loading: false,
           profiles,
