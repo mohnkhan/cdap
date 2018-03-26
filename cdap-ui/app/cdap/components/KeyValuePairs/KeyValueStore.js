@@ -60,12 +60,7 @@ const keyValues = (state = initialState, action = defaultAction) => {
       return stateCopy;
     case KeyValueStoreActions.addPair:
       stateCopy = Object.assign({}, state);
-      stateCopy.pairs.splice(action.payload.index + 1, 0, {
-        key : '',
-        value: '',
-        uniqueId: uuidV4(),
-        provided: false
-      });
+      stateCopy.pairs.splice(action.payload.index + 1, 0, getDefaultKeyValuePair());
       return stateCopy;
     case KeyValueStoreActions.deletePair:
       stateCopy = Object.assign({}, state);
