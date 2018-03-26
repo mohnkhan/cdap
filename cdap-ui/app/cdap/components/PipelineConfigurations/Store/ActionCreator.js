@@ -46,10 +46,20 @@ const applyRuntimeArgs = () => {
 // Filter certain preferences from being shown in the run time arguments 
 // They are being represented in other places (like selected compute profile).
 const getFilteredRuntimeArgs = () => {
-  let runtimeArgs = PipelineConfigurationsStore.getState().runtimeArgs;
+  let {runtimeArgs, resolvedMacros} = PipelineConfigurationsStore.getState();
   let modifiedRuntimeArgs = {};
   let pairs = [...runtimeArgs.pairs];
-  pairs = pairs.filter(pair => (RUNTIME_ARGS_TO_SKIP_DURING_DISPLAY.indexOf(pair.key) === -1));
+  pairs = pairs
+    .filter(pair => (RUNTIME_ARGS_TO_SKIP_DURING_DISPLAY.indexOf(pair.key) === -1))
+    .map(pair => {
+      if (pair.key in resolvedMacros) {
+        return {
+          notDeletable: true,
+          ...pair
+        };
+      }
+      return pair;
+    });
   if (!pairs.length) {
     pairs.push(getDefaultKeyValuePair());
   }
