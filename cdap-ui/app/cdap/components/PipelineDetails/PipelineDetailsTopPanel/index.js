@@ -29,6 +29,7 @@ import {MyPreferenceApi} from 'api/preference';
 import {objectQuery} from 'services/helpers';
 import {GLOBALS} from 'services/global-constants';
 import uuidV4 from 'uuid/v4';
+import uniqBy from 'lodash/uniqBy';
 
 require('./PipelineDetailsTopPanel.scss');
 
@@ -83,6 +84,7 @@ export default class PipelineDetailsTopPanel extends Component {
         let currentAppPrefs = res[1];
         let resolvedMacros = getMacrosResolvedByPrefs(currentAppPrefs, macrosMap);
 
+        // Map of all macros and its values from app preference.
         PipelineConfigurationsStore.dispatch({
           type: PipelineConfigurationsActions.SET_RESOLVED_MACROS,
           payload: { resolvedMacros }
@@ -96,11 +98,19 @@ export default class PipelineDetailsTopPanel extends Component {
         let runtimeArgsPairs = getPairs(currentAppPrefs);
         let resolveMacrosPairs = getPairs(resolvedMacros);
 
+        // Array of all run time arguments displayed on UI
+        // Includes macros resolved from app preference + app preference.
+        // This is done as opposed to just showing app preference all the time
+        // is because the first time when the pipeline is run the macro is only avaiable
+        // at the macro spec of the plugin and not in the app preference. Hence the concatentation.
+
+        // Once the pipeline is run once we pick up the macro value from app preference
+        // since its already saved over there. Hence the duplicate removal (one from app preference and the other form macro spec)
         PipelineConfigurationsStore.dispatch({
           type: PipelineConfigurationsActions.SET_RUNTIME_ARGS,
           payload: {
             runtimeArgs: {
-              pairs: runtimeArgsPairs.concat(resolveMacrosPairs)
+              pairs: uniqBy(runtimeArgsPairs.concat(resolveMacrosPairs), (pair) => pair.key)
             }
           }
         });

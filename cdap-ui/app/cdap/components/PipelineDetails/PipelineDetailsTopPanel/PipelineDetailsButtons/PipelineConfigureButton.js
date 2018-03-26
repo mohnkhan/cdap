@@ -28,6 +28,7 @@ import PipelineDetailStore from 'components/PipelineDetails/store';
 import {MyPipelineApi} from 'api/pipeline';
 import uuidV4 from 'uuid/v4';
 import {objectQuery} from 'services/helpers';
+import uniqBy from 'lodash/uniqBy';
 
 const PREFIX = 'features.PipelineDetails.TopPanel';
 
@@ -85,7 +86,7 @@ export default class PipelineConfigureButton extends Component {
             type: PipelineConfigurationsActions.SET_RUNTIME_ARGS,
             payload: {
               runtimeArgs: {
-                pairs: runtimeArgsPairs.concat(resolveMacrosPairs)
+                pairs: uniqBy(runtimeArgsPairs.concat(resolveMacrosPairs), (pair) => pair.key)
               }
             }
           });
