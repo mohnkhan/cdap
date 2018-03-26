@@ -19,6 +19,6 @@ import {apiCreator} from 'services/resource-helper';
 let dataSrc = DataSourceConfigurer.getInstance();
 
 var basepath = '/namespaces/:namespace';
-export const myProfileApi = {
-  profiles: apiCreator(dataSrc, 'GET', 'REQUEST', `${basepath}/profiles`)
+export const MyProfileApi = {
+  list: apiCreator(dataSrc, 'GET', 'REQUEST', `${basepath}/profiles`)
 };
