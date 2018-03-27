@@ -28,12 +28,9 @@ class RecordAggregator extends Aggregator[Row, RecordBuilder, Record] {
   def zero: RecordBuilder = RecordBuilder("", "", "", Vector.empty, None)
   def reduce(builder: RecordBuilder, row: Row): RecordBuilder = {
     // Get the StartInfo from the builder if it exists or construct a new StartInfo from the row
-    val startInfo = if (builder.startInfo.isDefined) builder.startInfo else {
-      val startInfoRecord = Option(row.getAs[Row](Constants.START_INFO))
-      startInfoRecord match {
-        case None => None
-        case Some(v) => Some(StartInfo(v.getAs(Constants.USER), v.getAs(Constants.RUNTIME_ARGUMENTS)))
-      }
+    val startInfo: Option[StartInfo] = if (builder.startInfo.isDefined) builder.startInfo else {
+      Option(row.getAs[Row](Constants.START_INFO)).map(r => StartInfo(r.getAs(Constants.USER),
+        r.getAs(Constants.RUNTIME_ARGUMENTS)))
     }
     // Merge statusTimes from the builder with the new status and time tuple from the row. Combined with
     // the information from the row and the startInfo to create a new RecordBuilder
