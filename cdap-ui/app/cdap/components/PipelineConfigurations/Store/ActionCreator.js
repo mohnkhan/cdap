@@ -19,7 +19,6 @@ import PipelineDetailStore, {ACTIONS as PipelineDetailActions} from 'components/
 import {setRunButtonLoading, setRunError, setScheduleButtonLoading, setScheduleError, fetchScheduleStatus} from 'components/PipelineDetails/store/ActionCreator';
 import KeyValueStore, {getDefaultKeyValuePair} from 'components/KeyValuePairs/KeyValueStore';
 import KeyValueStoreActions from 'components/KeyValuePairs/KeyValueStoreActions';
-import {convertKeyValuePairsObjToMap} from 'components/KeyValuePairs/KeyValueStoreActions';
 import {GLOBALS} from 'services/global-constants';
 import {MyPipelineApi} from 'api/pipeline';
 import {MyProgramApi} from 'api/program';
@@ -266,7 +265,6 @@ const updatePipeline = () => {
 const runPipeline = () => {
   setRunButtonLoading(true);
   let { name, artifact } = PipelineDetailStore.getState();
-  let runtimeArgs = getFilteredRuntimeArgs();
 
   let params = {
     namespace: getCurrentNamespace(),
@@ -275,9 +273,7 @@ const runPipeline = () => {
     programId: GLOBALS.programId[artifact.name],
     action: 'start'
   };
-  runtimeArgs = convertKeyValuePairsObjToMap(runtimeArgs);
-  delete runtimeArgs[""];
-  MyProgramApi.action(params, runtimeArgs)
+  MyProgramApi.action(params)
   .subscribe(
     () => {},
     (err) => {
