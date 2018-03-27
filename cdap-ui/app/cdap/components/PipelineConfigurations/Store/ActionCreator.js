@@ -266,7 +266,7 @@ const updatePipeline = () => {
 const runPipeline = () => {
   setRunButtonLoading(true);
   let { name, artifact } = PipelineDetailStore.getState();
-  let { runtimeArgs } = PipelineConfigurationsStore.getState();
+  let runtimeArgs = getFilteredRuntimeArgs();
 
   let params = {
     namespace: getCurrentNamespace(),
