@@ -67,7 +67,7 @@ export default class PipelineDetailsTopPanel extends Component {
     };
     // FIXME: This should be extracted. It is the re-used in PipelineCongigureButton module.
     MyPipelineApi.fetchMacros(params)
-      .combineLatest(MyPreferenceApi.getAppPreferencesResolved(params))
+      .combineLatest(MyPreferenceApi.getAppPreferences(params))
       .subscribe((res) => {
         let macrosSpec = res[0];
         let macrosMap = {};

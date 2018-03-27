@@ -52,7 +52,7 @@ export default class PipelineConfigureButton extends Component {
       };
 
       MyPipelineApi.fetchMacros(params)
-        .combineLatest(MyPreferenceApi.getAppPreferencesResolved(params))
+        .combineLatest(MyPreferenceApi.getAppPreferences(params))
         .subscribe((res) => {
           let macrosSpec = res[0];
           let macrosMap = {};
