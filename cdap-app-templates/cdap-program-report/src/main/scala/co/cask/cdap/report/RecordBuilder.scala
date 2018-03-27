@@ -17,7 +17,7 @@ package co.cask.cdap.report
 
 import org.slf4j.LoggerFactory
 
-import scala.collection.JavaConversions.mapAsScalaMap
+import scala.collection.JavaConversions._
 
 /**
   * Builder for creating a [[Record]].
@@ -83,6 +83,7 @@ case class StartInfo(user: String,
                      // Use scala.collection.Map to avoid compilation error in Janino generated code
                      runtimeArgs: scala.collection.Map[String, String]) {
   def this(user: String, runtimeArgs: java.util.Map[String, String]) = this(user, mapAsScalaMap(runtimeArgs).toMap)
+  def getRuntimeArgsAsJavaMap(): java.util.Map[String, String] = runtimeArgs
 }
 
 object RecordBuilder {

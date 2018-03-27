@@ -20,11 +20,12 @@ import java.io.{IOException, PrintWriter}
 import co.cask.cdap.report.ReportGenerationSpark.ReportSparkHandler
 import co.cask.cdap.report.proto.ReportGenerationRequest
 import co.cask.cdap.report.util.Constants
+import com.databricks.spark._
 import com.google.gson._
+import org.apache.avro.mapred._
 import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 import org.apache.twill.filesystem.Location
 import org.slf4j.LoggerFactory
-
 import scala.collection.JavaConversions._
 
 /**
@@ -35,8 +36,10 @@ object ReportGenerationHelper {
   val GSON = new Gson()
   val LOG = LoggerFactory.getLogger(ReportGenerationHelper.getClass)
   val RECORD_COL = "record"
-  val REQUIRED_FIELDS = Set(Constants.NAMESPACE, Constants.PROGRAM, Constants.RUN)
+  val REQUIRED_FIELDS = Set(Constants.PROGRAM)
   val REQUIRED_FILTER_FIELDS = Set(Constants.START, Constants.END)
+  val AVRO_READER = avro.AvroDataFrameReader(_)
+  val FS_INPUT = classOf[FsInput]
 
   /**
     * Generates a report file according to the given request from the given program run meta files.
@@ -75,12 +78,13 @@ object ReportGenerationHelper {
     * @param spark the spark session to run report generation with
     * @param request the report generation request
     * @param inputURIs URIs of the avro files containing program run meta records
-    * @param outputLocation location of the output directory where the report file and _SUCCESS file will be written
-    * @throws java.io.IOException when fails to write to the _SUCCESS file
+    * @param reportBaseDir location of the directory where the report files directory, COUNT file,
+    *                      and _SUCCESS file will be created.
+    * @throws java.io.IOException when fails to write to the COUNT or _SUCCESS file
     */
   @throws(classOf[IOException])
   def generateReport(spark: SparkSession, request: ReportGenerationRequest, inputURIs: java.util.List[String],
-                     outputLocation: Location): Unit = {
+                     reportBaseDir: Location): Unit = {
     import spark.implicits._
     val df = spark.read.format("com.databricks.spark.avro").load(inputURIs: _*)
     // Get the fields to be included in the final report and additional fields required for filtering and sorting
@@ -113,19 +117,25 @@ object ReportGenerationHelper {
     // drop the columns which should not be included in the report
     resultDf.columns.foreach(col => if (!reportFields.contains(col)) resultDf = resultDf.drop(col))
     resultDf.persist()
-    resultDf.coalesce(1).write.option("timestampFormat", "yyyy/MM/dd HH:mm:ss ZZ").json(outputLocation.toURI.toString)
+    // Writing the DataFrame to JSON files requires a non-existing directory to write report files.
+    // Create a non-existing directory location with name ReportSparkHandler.REPORT_DIR
+    val reportDir = reportBaseDir.append(ReportSparkHandler.REPORT_DIR).toURI.toString;
+    resultDf.coalesce(1).write.option("timestampFormat", "yyyy/MM/dd HH:mm:ss ZZ").json(reportDir)
     val count = resultDf.count
     // Write the total number of records in _SUCCESS file generated after successful report generation
     var writer: Option[PrintWriter] = None
     try {
-      writer = Some(new PrintWriter(outputLocation.append(ReportSparkHandler.SUCCESS_FILE).getOutputStream))
+      val countFile = reportBaseDir.append(ReportSparkHandler.COUNT_FILE)
+      countFile.createNew
+      writer = Some(new PrintWriter(countFile.getOutputStream))
       writer.get.write(count.toString)
     } catch {
       case e: IOException => {
-        LOG.error("Failed to write to {} in {}", ReportSparkHandler.SUCCESS_FILE, outputLocation.toURI.toString, e)
+        LOG.error("Failed to write to {} in {}", ReportSparkHandler.COUNT_FILE, reportBaseDir.toURI.toString, e)
         throw e
       }
     } finally if (writer.isDefined) writer.get.close()
+    reportBaseDir.append(ReportSparkHandler.SUCCESS_FILE).createNew()
   }
 
   /**

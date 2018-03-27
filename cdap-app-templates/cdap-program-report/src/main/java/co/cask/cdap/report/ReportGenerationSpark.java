@@ -103,7 +103,8 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
     private SparkSession sparkSession;
 
     public static final String START_FILE = "_START";
-    public static final String REPORT_DIR = "report";
+    public static final String REPORT_DIR = "reports";
+    public static final String COUNT_FILE = "COUNT";
     public static final String SUCCESS_FILE = "_SUCCESS";
     public static final String FAILURE_FILE = "_FAILURE";
 
@@ -223,9 +224,9 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
           reportRecords.add(line);
         }
       }
-      // Get the total number of records from the _SUCCESS file
+      // Get the total number of records from the COUNT file
       String total =
-        new String(ByteStreams.toByteArray(reportDir.append(SUCCESS_FILE).getInputStream()), Charsets.UTF_8);
+        new String(ByteStreams.toByteArray(reportBaseDir.append(COUNT_FILE).getInputStream()), Charsets.UTF_8);
       responder.sendJson(200, new ReportContent(offset, limit, Integer.parseInt(total), reportRecords));
     }
 
@@ -250,26 +251,16 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
       LOG.debug("Created report base directory {} for report {}", reportBaseDir, reportId);
       // Create a _START file to indicate the start of report generation
       Location startFile = reportBaseDir.append(START_FILE);
-      try {
-        startFile.createNew();
-      } catch (IOException e) {
-        LOG.error("Failed to create startFile {}", startFile.toURI(), e);
-        throw e;
-      }
+      startFile.createNew();
       // Save the report generation request in the _START file
       try (PrintWriter writer = new PrintWriter(startFile.getOutputStream())) {
         writer.write(requestJson);
-      } catch (IOException e) {
-        LOG.error("Failed to write to startFile {}", startFile.toURI(), e);
-        throw e;
       }
       LOG.debug("Wrote to startFile {}", startFile.toURI());
       // Generate the report asynchronously in a new thread
       Executors.newSingleThreadExecutor().submit(() -> {
         try {
-          // Report generation requires a non-existing directory to write report files.
-          // Create a non-existing directory location with name REPORT_DIR
-          generateReport(reportRequest, reportBaseDir.append(REPORT_DIR));
+          generateReport(reportRequest, reportBaseDir);
         } catch (Throwable t) {
           LOG.error("Failed to generate report {}", reportId, t);
           try {
@@ -286,7 +277,7 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
           }
         }
       });
-      responder.sendJson(200, GSON.toJson(ImmutableMap.of("id", reportId)));
+      responder.sendJson(200, ImmutableMap.of("id", reportId));
     }
 
     /**
@@ -296,20 +287,16 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
      * that actually launches a Spark job to generate reports.
      *
      * @param reportRequest request
-     * @param reportDir location of the output directory where the report files will be written
+     * @param reportBaseDir location of the directory where the report files directory, COUNT file,
+     *                      and _SUCCESS file will be created.
      */
-    private void generateReport(ReportGenerationRequest reportRequest, Location reportDir) throws IOException {
+    private void generateReport(ReportGenerationRequest reportRequest, Location reportBaseDir) throws IOException {
       Location baseLocation = Transactionals.execute(getContext(), context -> {
         return context.<FileSet>getDataset(ReportGenerationApp.RUN_META_FILESET).getBaseLocation();
       });
       // Get a list of directories of all namespaces under RunMetaFileset base location
       List<Location> nsLocations;
-      try {
-        nsLocations = baseLocation.list();
-      } catch (IOException e) {
-        LOG.error("Failed to get namespace locations from {}", baseLocation.toURI().toString());
-        throw e;
-      }
+      nsLocations = baseLocation.list();
       // Get the namespace filter from the request if it exists
       ReportGenerationRequest.ValueFilter<String> namespaceFilter = null;
       if (reportRequest.getFilters() != null) {
@@ -335,7 +322,6 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
           LOG.debug("Files under namespace {}: {}", nsLocation.getName(), metaFileLocations);
           return metaFileLocations.stream();
         } catch (IOException e) {
-          LOG.error("Failed to list files under namespace {}", nsLocation.toURI().toString(), e);
           throw new RuntimeException(e);
         }
       });
@@ -348,7 +334,7 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
       }).map(location -> location.toURI().toString()).collect(Collectors.toList());
       LOG.debug("Filtered meta files {}", metaFiles);
       // Generate the report with the request and program run meta files
-      ReportGenerationHelper.generateReport(sparkSession, reportRequest, metaFilePaths, reportDir);
+      ReportGenerationHelper.generateReport(sparkSession, reportRequest, metaFilePaths, reportBaseDir);
     }
 
     /**
@@ -362,7 +348,7 @@ public class ReportGenerationSpark extends AbstractExtendedSpark implements Java
      * @return status of the report generation
      */
     private ReportStatus getReportStatus(Location reportBaseDir) throws IOException {
-      if (reportBaseDir.append(REPORT_DIR).append(SUCCESS_FILE).exists()) {
+      if (reportBaseDir.append(SUCCESS_FILE).exists()) {
         return ReportStatus.COMPLETED;
       }
       if (reportBaseDir.append(FAILURE_FILE).exists()) {

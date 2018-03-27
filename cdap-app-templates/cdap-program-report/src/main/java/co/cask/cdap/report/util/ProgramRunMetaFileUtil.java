@@ -112,7 +112,7 @@ public class ProgramRunMetaFileUtil {
     if (startInfo != null) {
       startInfoRecord = new GenericData.Record(STARTING_INFO_SCHEMA);
       startInfoRecord.put(Constants.USER, startInfo.user());
-      startInfoRecord.put(Constants.RUNTIME_ARGUMENTS, startInfo.runtimeArgs());
+      startInfoRecord.put(Constants.RUNTIME_ARGUMENTS, startInfo.getRuntimeArgsAsJavaMap());
     }
     GenericData.Record record = new GenericData.Record(SCHEMA);
     record.put(Constants.NAMESPACE, namespace);
