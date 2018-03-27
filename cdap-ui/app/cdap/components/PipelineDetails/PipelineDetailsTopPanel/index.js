@@ -21,15 +21,9 @@ import PipelineDetailsButtons from 'components/PipelineDetails/PipelineDetailsTo
 import PipelineDetailsDetailsActions from 'components/PipelineDetails/PipelineDetailsTopPanel/PipelineDetailsDetailsActions';
 import PipelineDetailStore from 'components/PipelineDetails/store';
 import PipelineConfigurationsStore, {ACTIONS as PipelineConfigurationsActions} from 'components/PipelineConfigurations/Store';
-import {getMacrosResolvedByPrefs} from 'components/PipelineConfigurations/Store/ActionCreator';
 import PlusButton from 'components/PlusButton';
-import {getCurrentNamespace} from 'services/NamespaceStore';
-import {MyPipelineApi} from 'api/pipeline';
-import {MyPreferenceApi} from 'api/preference';
-import {objectQuery} from 'services/helpers';
 import {GLOBALS} from 'services/global-constants';
-import uuidV4 from 'uuid/v4';
-import uniqBy from 'lodash/uniqBy';
+import {fetchAndUpdateRuntimeArgs} from 'components/PipelineDetails/store/ActionCreator';
 
 require('./PipelineDetailsTopPanel.scss');
 
@@ -61,63 +55,7 @@ export default class PipelineDetailsTopPanel extends Component {
     });
   }
   componentDidMount() {
-    const params = {
-      namespace: getCurrentNamespace(),
-      appId: PipelineDetailStore.getState().name
-    };
-    // FIXME: This should be extracted. It is the re-used in PipelineCongigureButton module.
-    MyPipelineApi.fetchMacros(params)
-      .combineLatest(MyPreferenceApi.getAppPreferences(params))
-      .subscribe((res) => {
-        let macrosSpec = res[0];
-        let macrosMap = {};
-        let macros = [];
-        macrosSpec.map(ms => {
-          if (objectQuery(ms, 'spec', 'properties', 'macros', 'lookupProperties')) {
-            macros = macros.concat(ms.spec.properties.macros.lookupProperties);
-          }
-        });
-        macros.forEach(macro => {
-          macrosMap[macro] = '';
-        });
-
-        let currentAppPrefs = res[1];
-        let resolvedMacros = getMacrosResolvedByPrefs(currentAppPrefs, macrosMap);
-
-        // Map of all macros and its values from app preference.
-        PipelineConfigurationsStore.dispatch({
-          type: PipelineConfigurationsActions.SET_RESOLVED_MACROS,
-          payload: { resolvedMacros }
-        });
-        const getPairs = (map) => (
-          Object
-            .entries(map)
-            .filter(([key]) => key.length)
-            .map(([key, value]) => ({key, value, uniqueId: uuidV4()}))
-        );
-        let runtimeArgsPairs = getPairs(currentAppPrefs);
-        let resolveMacrosPairs = getPairs(resolvedMacros);
-
-        // Array of all run time arguments displayed on UI
-        // Includes macros resolved from app preference + app preference.
-        // This is done as opposed to just showing app preference all the time
-        // is because the first time when the pipeline is run the macro is only avaiable
-        // at the macro spec of the plugin and not in the app preference. Hence the concatentation.
-
-        // Once the pipeline is run once we pick up the macro value from app preference
-        // since its already saved over there. Hence the duplicate removal (one from app preference and the other form macro spec)
-        PipelineConfigurationsStore.dispatch({
-          type: PipelineConfigurationsActions.SET_RUNTIME_ARGS,
-          payload: {
-            runtimeArgs: {
-              pairs: uniqBy(runtimeArgsPairs.concat(resolveMacrosPairs), (pair) => pair.key)
-            }
-          }
-        });
-      }, (err) => {
-        console.log(err);
-      }
-    );
+    fetchAndUpdateRuntimeArgs();
   }
   render() {
     return (
