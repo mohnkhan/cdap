@@ -44,7 +44,7 @@ const applyRuntimeArgs = () => {
 
 // Filter certain preferences from being shown in the run time arguments 
 // They are being represented in other places (like selected compute profile).
-const getFilteredRuntimeArgs = () => {
+const getFilteredRuntimeArgs = (hideProvided) => {
   let {runtimeArgs, resolvedMacros} = PipelineConfigurationsStore.getState();
   let modifiedRuntimeArgs = {};
   let pairs = [...runtimeArgs.pairs];
@@ -55,13 +55,13 @@ const getFilteredRuntimeArgs = () => {
         return {
           notDeletable: true,
           // This is needed because KeyValuePair will render a checkbox only if the provided is a boolean.
-          provided: pair.provided || false,
+          provided: hideProvided ? null : pair.provided || false,
           ...pair
         };
       }
       return {
         ...pair,
-        provided: pair.provided || false,
+        provided: hideProvided ? null : pair.provided || false,
       };
     });
   if (!pairs.length) {

@@ -25,7 +25,7 @@ import {
 
 const mapStateToProps = (state, ownProps) => {
   return {
-    keyValues: getFilteredRuntimeArgs(),
+    keyValues: getFilteredRuntimeArgs(ownProps.disabled),
     disabled: ownProps.disabled,
     onPaste: ownProps.onPaste
   };
