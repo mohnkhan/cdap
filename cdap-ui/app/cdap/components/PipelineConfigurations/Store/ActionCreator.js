@@ -18,7 +18,7 @@ import PipelineConfigurationsStore, {ACTIONS as PipelineConfigurationsActions} f
 import PipelineDetailStore, {ACTIONS as PipelineDetailActions} from 'components/PipelineDetails/store';
 import {setRunButtonLoading, setRunError, setScheduleButtonLoading, setScheduleError, fetchScheduleStatus} from 'components/PipelineDetails/store/ActionCreator';
 import KeyValueStore, {getDefaultKeyValuePair} from 'components/KeyValuePairs/KeyValueStore';
-import KeyValueStoreActions from 'components/KeyValuePairs/KeyValueStoreActions';
+import KeyValueStoreActions, {convertKeyValuePairsObjToMap} from 'components/KeyValuePairs/KeyValueStoreActions';
 import {GLOBALS} from 'services/global-constants';
 import {MyPipelineApi} from 'api/pipeline';
 import {MyProgramApi} from 'api/program';
@@ -129,13 +129,7 @@ const getMacrosResolvedByPrefs = (resolvedPrefs = {}, macrosMap = {}) => {
 const updatePreferences = () => {
   let {runtimeArgs} = PipelineConfigurationsStore.getState();
   let appId = PipelineDetailStore.getState().name;
-  let prefObj = {};
-  runtimeArgs
-    .pairs
-    .filter(runTimeArg => runTimeArg.key.length)
-    .forEach(runTimeArg => {
-      prefObj[runTimeArg.key] = runTimeArg.value;
-    });
+  let prefObj = convertKeyValuePairsObjToMap(runtimeArgs);
 
   if (!Object.keys(prefObj).length) {
     return Observable.create((observer) => {
@@ -162,7 +156,7 @@ const updatePipelineEditStatus = () => {
   let isInstrumentationModified = oldConfig.processTimingEnabled !== updatedConfig.processTimingEnabled;
   let isStageLoggingModified = oldConfig.stageLoggingEnabled !== updatedConfig.stageLoggingEnabled;
   let isCustomEngineConfigModified = oldConfig.properties !== updatedConfig.properties;
-  let isRunTimeArgsModified = difference(updatedConfig.runTimeArg, updatedConfig.savedRuntimeArgs);
+  let isRunTimeArgsModified = difference(updatedConfig.runTimeArgs, updatedConfig.savedRuntimeArgs);
 
   let isModified = (
     isResourcesModified ||

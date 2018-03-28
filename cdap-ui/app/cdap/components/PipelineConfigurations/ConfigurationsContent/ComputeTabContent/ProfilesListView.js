@@ -50,14 +50,19 @@ export default class ProfilesListViewInPipeline extends Component {
         appId
       })
     )
-      .subscribe(([profiles = [], preferences = {}]) => {
-        let selectedProfile = preferences[PROFILE_NAME_PREFERENCE_PROPERTY];
-        this.setState({
-          loading: false,
-          profiles,
-          selectedProfile
-        });
-      });
+      .subscribe(
+        ([profiles = [], preferences = {}]) => {
+          let selectedProfile = preferences[PROFILE_NAME_PREFERENCE_PROPERTY];
+          this.setState({
+            loading: false,
+            profiles,
+            selectedProfile
+          });
+        },
+        (err) => {
+          console.log('ERROR in fetching profiles from backend: ', err);
+        }
+      );
   }
 
   onProfileSelect = (profileName) => {
