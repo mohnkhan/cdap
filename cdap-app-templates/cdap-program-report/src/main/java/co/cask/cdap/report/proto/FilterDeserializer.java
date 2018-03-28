@@ -24,7 +24,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 
 import java.lang.reflect.Type;
-import java.util.stream.Collectors;
+import java.util.List;
 import javax.annotation.Nullable;
 
 /**
@@ -63,40 +63,31 @@ public class FilterDeserializer implements JsonDeserializer<ReportGenerationRequ
       throw new JsonParseException(String.format("Invalid field name '%s'. Field name must be one of: [%s]", fieldName,
                                                  String.join(", ", ReportField.FIELD_NAME_MAP.keySet())));
     }
+    ReportGenerationRequest.Filter filter = null;
+    // if the object contains "range" field, try to deserialize it as a range filter
     if (object.get("range") != null) {
-      // If range filter cannot be applied to the given field, such as ReportField.NAMESAPCE, throw exception.
-      if (!field.getApplicableFilters().contains(ReportField.FilterType.RANGE)) {
-        throw new JsonParseException(
-          String.format("Field '%s' cannot be filtered by range. It can only be filtered by: [%s]", fieldName,
-                        field.getApplicableFilters().stream().map(f -> f.name().toLowerCase())
-                          .collect(Collectors.joining(","))));
-      }
       // Use the type token that matches the class of this field's value to deserialize the JSON
       if (field.getValueClass().equals(Integer.class)) {
-        return context.deserialize(json, INT_RANGE_FILTER_TYPE);
+        filter = context.deserialize(json, INT_RANGE_FILTER_TYPE);
+      } else if (field.getValueClass().equals(Long.class)) {
+        filter = context.deserialize(json, LONG_RANGE_FILTER_TYPE);
       }
-      if (field.getValueClass().equals(Long.class)) {
-        return context.deserialize(json, LONG_RANGE_FILTER_TYPE);
-      }
-      // this should never happen. If the field's applicable filters contains range filter,
+      // otherwise, try to deserialize it as a value filter
+    } else if (field.getValueClass().equals(String.class)) {
+      // Use the type token that matches the class of this field's value to deserialize the JSON
+      filter = context.deserialize(json, STRING_VALUE_FILTER_TYPE);
+    }
+    if (filter == null) {
+      // this should never happen. If the field's applicable filters contains value filter,
       // there must be a know class matches the class of its value
-      throw new JsonParseException(String.format("Field %s with value type %s cannot be filtered by range", fieldName,
-                                                 field.getValueClass().getName()));
+      throw new JsonParseException(String.format("No applicable filter found for field %s with value type %s.",
+                                                 fieldName, field.getValueClass().getName()));
     }
-    // If value filter cannot be applied to the given field, such as ReportField.RUNTIME_ARGS, throw exception.
-    if (!field.getApplicableFilters().contains(ReportField.FilterType.VALUE)) {
-      throw new JsonParseException(
-        String.format("Field '%s' cannot be filtered by values. It can only be filtered by: [%s]", fieldName,
-                      field.getApplicableFilters().stream().map(f -> f.name().toLowerCase())
-                        .collect(Collectors.joining(","))));
+    List<String> errors = filter.getErrors();
+    if (errors.isEmpty()) {
+      return filter;
     }
-    // Use the type token that matches the class of this field's value to deserialize the JSON
-    if (field.getValueClass().equals(String.class)) {
-      return context.deserialize(json, STRING_VALUE_FILTER_TYPE);
-    }
-    // this should never happen. If the field's applicable filters contains value filter,
-    // there must be a know class matches the class of its value
-    throw new JsonParseException(String.format("Field %s with value type %s cannot be filtered by values", fieldName,
-                                               field.getValueClass().getName()));
+    throw new JsonParseException(String.format("Errors in filter with field name '%s': %s",
+                                               fieldName, String.join("; ", errors)));
   }
 }

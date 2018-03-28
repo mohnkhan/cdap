@@ -17,8 +17,10 @@
 package co.cask.cdap.report.proto;
 
 import co.cask.cdap.report.util.ReportField;
+import com.google.common.collect.ImmutableList;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -99,6 +101,9 @@ public class ReportGenerationRequest {
     if (end == null) {
       errors.add("'end' must be specified.");
     }
+    if (start >= end) {
+      errors.add("'start' must be smaller than 'end'.");
+    }
     if (fields == null || fields.isEmpty()) {
       errors.add("'fields' must be specified.");
     } else {
@@ -107,28 +112,14 @@ public class ReportGenerationRequest {
                                                   field, String.join(", ", ReportField.FIELD_NAME_MAP.keySet())))
                       .collect(Collectors.toList()));
     }
-    // No need to check whether filter field name and type are valid since this is done during JSON deserialization
     if (filters != null) {
-      Set<String> uniqueFilterFields = new HashSet<>();
-      errors.addAll(filters.stream().filter(filter -> !uniqueFilterFields.add(filter.getFieldName()))
-                      .map(filter -> String.format("Field '%s' is duplicated in filters.", filter.getFieldName()))
-                      .collect(Collectors.toList()));
+      filters.stream().map(Field::getErrors).forEach(errors::addAll);
     }
     if (sort != null) {
       if (sort.size() > 1) {
         errors.add("Currently only one field is supported in sort.");
       }
-      for (Sort sortField : sort) {
-        ReportField sortFieldType = ReportField.valueOfFieldName(sortField.getFieldName());
-        if (sortFieldType == null) {
-          errors.add(String.format("Invalid field name '%s' in sort. Field name must be one of: [%s]",
-                                   sortField.getFieldName(), String.join(", ", ReportField.FIELD_NAME_MAP.keySet())));
-        }
-        if (!sortFieldType.isSortable()) {
-          errors.add(String.format("Field '%s' in sort is not sortable. Only fields: [%s] are sortable",
-                                   sortField.getFieldName(), String.join(", ", ReportField.SORTABLE_FIELDS)));
-        }
-      }
+      sort.stream().map(Field::getErrors).forEach(errors::addAll);
     }
     if (errors.size() > 0) {
       throw new IllegalArgumentException("Invalid report generation request: " + String.join("; ", errors));
@@ -136,7 +127,7 @@ public class ReportGenerationRequest {
   }
 
   /**
-   * Represents a flied in the report.
+   * Represents a flied in the report generation request.
    */
   public static class Field {
     private final String fieldName;
@@ -147,6 +138,17 @@ public class ReportGenerationRequest {
 
     public String getFieldName() {
       return fieldName;
+    }
+
+    /**
+     * @return list of errors of this field that are not allowed in a valid report generation request.
+     */
+    public List<String> getErrors() {
+      if (ReportField.isValidField(fieldName)) {
+        return Collections.emptyList();
+      }
+      return ImmutableList.of(String.format("Invalid field name '%s' in fields. Field name must be one of: [%s]",
+                                            fieldName, String.join(", ", ReportField.FIELD_NAME_MAP.keySet())));
     }
   }
 
@@ -166,6 +168,24 @@ public class ReportGenerationRequest {
      */
     public Order getOrder() {
       return order;
+    }
+
+    @Override
+    public List<String> getErrors() {
+      ArrayList<String> errors = new ArrayList<>();
+      errors.addAll(super.getErrors());
+      ReportField sortField = ReportField.valueOfFieldName(getFieldName());
+      if (sortField == null) {
+        errors.add(String.format("Invalid field name '%s' in sort. Field name must be one of: [%s]",
+                                 getFieldName(), String.join(", ", ReportField.FIELD_NAME_MAP.keySet())));
+      } else if (!sortField.isSortable()) {
+        errors.add(String.format("Field '%s' in sort is not sortable. Only fields: [%s] are sortable",
+                                 getFieldName(), String.join(", ", ReportField.SORTABLE_FIELDS)));
+      }
+      if (order == null) {
+        errors.add(String.format("'order' cannot be null in sort '%s'.", getFieldName()));
+      }
+      return errors;
     }
 
     @Override
@@ -190,10 +210,29 @@ public class ReportGenerationRequest {
 
     /**
      * Checks whether the given value of the field is allowed.
+     *
      * @param value value of the field
      * @return {@code true} if the value is allowed, {@code false} otherwise.
      */
     public abstract boolean apply(T value);
+
+    /**
+     * Get errors in the filter of a given filter type that are not allowed in a report generation request.
+     *
+     * @param filterType type of the filter
+     * @return list of errors in the filter
+     */
+    protected List<String> getFilterTypeErrors(ReportField.FilterType filterType) {
+      List<String> errors = new ArrayList<>();
+      ReportField valueFilterField = ReportField.valueOfFieldName(getFieldName());
+      if (valueFilterField != null && !valueFilterField.getApplicableFilters().contains(filterType)) {
+        errors.add(String.format("Field '%s' cannot be filtered by %s. It can only be filtered by: [%s]",
+                                 getFieldName(), filterType.getPrettyName(),
+                                 valueFilterField.getApplicableFilters().stream()
+                                   .map(ReportField.FilterType::getPrettyName).collect(Collectors.joining(","))));
+      }
+      return errors;
+    }
   }
 
   /**
@@ -228,6 +267,24 @@ public class ReportGenerationRequest {
     @Nullable
     public List<T> getBlacklist() {
       return blacklist;
+    }
+
+    @Override
+    public List<String> getErrors() {
+      ArrayList<String> errors = new ArrayList<>();
+      errors.addAll(super.getErrors());
+      errors.addAll(getFilterTypeErrors(ReportField.FilterType.VALUE));
+      if (whitelist == null && blacklist == null) {
+        errors.add(String.format("'whitelist' and 'blacklist' cannot both be null in filter '%s'", getFieldName()));
+      } else if (whitelist != null && blacklist != null) {
+        Set<T> duplicates = new HashSet(whitelist);
+        duplicates.retainAll(blacklist);
+        if (!duplicates.isEmpty()) {
+          errors.add(String.format("'whitelist' and 'blacklist' should not contain duplicated elements in filter '%s'",
+                                   getFieldName()));
+        }
+      }
+      return errors;
     }
 
     @Override
@@ -271,6 +328,24 @@ public class ReportGenerationRequest {
       return (range.getMin() == null || range.getMin().compareTo(value) <= 0)
         && (range.getMax() == null || range.getMax().compareTo(value) > 0);
     }
+
+    @Override
+    public List<String> getErrors() {
+      ArrayList<String> errors = new ArrayList<>();
+      errors.addAll(super.getErrors());
+      errors.addAll(getFilterTypeErrors(ReportField.FilterType.RANGE));
+      if (range == null) {
+        errors.add(String.format("'range' cannot be null in the range filter '%s'", getFieldName()));
+      } else {
+        if (range.getMin() == null && range.getMax() == null) {
+          errors.add(String.format("'min' and 'max' cannot both be null in the range filter '%s'", getFieldName()));
+        } else if (range.getMin() != null && range.getMax() != null && range.getMin().compareTo(range.getMax()) >= 0) {
+          errors.add(String.format("'min' must be smaller than 'max' in the range filter '%s'", getFieldName()));
+        }
+      }
+      return errors;
+    }
+
     @Override
     public String toString() {
       return "RangeFilter{" +

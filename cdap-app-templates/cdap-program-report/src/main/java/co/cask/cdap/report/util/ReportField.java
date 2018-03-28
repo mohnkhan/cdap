@@ -151,7 +151,20 @@ public enum ReportField {
    * Represents the type of a filter.
    */
   public enum FilterType {
-    VALUE,
-    RANGE
+    VALUE("value"),
+    RANGE("range");
+
+    private final String prettyName;
+
+    FilterType(String prettyName) {
+      this.prettyName = prettyName;
+    }
+
+    /**
+     * @return the name of the filter type used in HTTP request/response
+     */
+    public String getPrettyName() {
+      return prettyName;
+    }
   }
 }
