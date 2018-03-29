@@ -31,7 +31,7 @@ export const getDefaultKeyValuePair = () => ({
   key : '',
   value : '',
   uniqueId: uuidV4(),
-  provided: false
+  provided: null
 });
 
 const keyValues = (state = initialState, action = defaultAction) => {

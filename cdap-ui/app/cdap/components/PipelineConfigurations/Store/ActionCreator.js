@@ -54,14 +54,14 @@ const getFilteredRuntimeArgs = (hideProvided) => {
       if (pair.key in resolvedMacros) {
         return {
           notDeletable: true,
-          // This is needed because KeyValuePair will render a checkbox only if the provided is a boolean.
           provided: hideProvided ? null : pair.provided || false,
           ...pair
         };
       }
       return {
         ...pair,
-        provided: hideProvided ? null : pair.provided || false,
+        // This is needed because KeyValuePair will render a checkbox only if the provided is a boolean.
+        provided: null
       };
     });
   if (!pairs.length) {
