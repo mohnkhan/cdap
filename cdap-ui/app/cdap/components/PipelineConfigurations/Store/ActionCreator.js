@@ -156,7 +156,7 @@ const updatePipelineEditStatus = () => {
   let isInstrumentationModified = oldConfig.processTimingEnabled !== updatedConfig.processTimingEnabled;
   let isStageLoggingModified = oldConfig.stageLoggingEnabled !== updatedConfig.stageLoggingEnabled;
   let isCustomEngineConfigModified = oldConfig.properties !== updatedConfig.properties;
-  let isRunTimeArgsModified = difference(updatedConfig.runTimeArgs, updatedConfig.savedRuntimeArgs);
+  let isRunTimeArgsModified = difference(updatedConfig.runtimeArgs, updatedConfig.savedRuntimeArgs);
 
   let isModified = (
     isResourcesModified ||
